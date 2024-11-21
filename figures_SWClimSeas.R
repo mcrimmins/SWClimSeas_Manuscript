@@ -66,37 +66,37 @@ clusterGrid<-crop(clusterGrid, extent(-114.88,-102.9,31.22,37.08))
 
 ##### evaluate cluster N ---- supp material ----
 # # # # find optimal cluster number
-clusterN=10
-wss<-c(NA, seq(2,clusterN,1))
-minwss<-c(NA, seq(2,clusterN,1))
-totss<-c(NA, seq(2,clusterN,1))
-btwss<-c(NA, seq(2,clusterN,1))
-for (i in 2:clusterN){
-  set.seed(1234)
-  unC <- unsuperClass(clusterGrid, nSamples = 250000, nClasses = i, nStarts = 25, nIter = 1000)
-  wss[i]<-unC$model$tot.withinss
-  minwss[i]<-min(unC$model$withinss)
-  totss[i]<-unC$model$totss
-  btwss[i]<-unC$model$betweenss
-  print(i)
-}
-# save cluster diag vars
-save(clusterN,wss,minwss,totss,btwss,
-     file="./data/moScale_FindClusterDiagnostics.RData")
-load("./data/moScale_FindClusterDiagnostics.RData")
-
-plot(2:clusterN, wss[2:clusterN], type="b", xlab="Number of Clusters",
-     ylab="Within groups sum of squares", ylim=c(min(wss[2:clusterN]),max(wss[2:clusterN])))
-plot(3:clusterN, diff(wss[2:clusterN])*-1, type="b", xlab="Number of Clusters",
-     ylab="Diff Within groups sum of squares")#, ylim=c(min(diff(wss[2:clusterN])),max(diff(wss[2:clusterN]))))
-plot(2:clusterN, btwss[2:clusterN], type="b", xlab="Number of Clusters",
-     ylab="Between groups sum of squares",  ylim=c(min(btwss[2:clusterN]),max(btwss[2:clusterN])))
-plot(2:clusterN, minwss[2:clusterN], type="b", xlab="Number of Clusters",
-     ylab="Min groups sum of squares",  ylim=c(min(minwss[2:clusterN]),max(minwss[2:clusterN])))
-plot(3:clusterN, diff(minwss[2:clusterN])*-1, type="b", xlab="Number of Clusters",
-     ylab="Diff Min groups sum of squares")#,ylim=c(min(minwss[2:clusterN]),max(minwss[2:clusterN])))
-plot(2:clusterN, btwss[2:clusterN]/totss[2:clusterN], type="b", xlab="Number of Clusters",
-     ylab="BSS/TSS Ratio")#,  ylim=c(min(totss[2:clusterN]),max(totss[2:clusterN])))
+# clusterN=10
+# wss<-c(NA, seq(2,clusterN,1))
+# minwss<-c(NA, seq(2,clusterN,1))
+# totss<-c(NA, seq(2,clusterN,1))
+# btwss<-c(NA, seq(2,clusterN,1))
+# for (i in 2:clusterN){
+#   set.seed(1234)
+#   unC <- unsuperClass(clusterGrid, nSamples = 250000, nClasses = i, nStarts = 25, nIter = 1000)
+#   wss[i]<-unC$model$tot.withinss
+#   minwss[i]<-min(unC$model$withinss)
+#   totss[i]<-unC$model$totss
+#   btwss[i]<-unC$model$betweenss
+#   print(i)
+# }
+# # save cluster diag vars
+# save(clusterN,wss,minwss,totss,btwss,
+#      file="./data/moScale_FindClusterDiagnostics.RData")
+# load("./data/moScale_FindClusterDiagnostics.RData")
+# 
+# plot(2:clusterN, wss[2:clusterN], type="b", xlab="Number of Clusters",
+#      ylab="Within groups sum of squares", ylim=c(min(wss[2:clusterN]),max(wss[2:clusterN])))
+# plot(3:clusterN, diff(wss[2:clusterN])*-1, type="b", xlab="Number of Clusters",
+#      ylab="Diff Within groups sum of squares")#, ylim=c(min(diff(wss[2:clusterN])),max(diff(wss[2:clusterN]))))
+# plot(2:clusterN, btwss[2:clusterN], type="b", xlab="Number of Clusters",
+#      ylab="Between groups sum of squares",  ylim=c(min(btwss[2:clusterN]),max(btwss[2:clusterN])))
+# plot(2:clusterN, minwss[2:clusterN], type="b", xlab="Number of Clusters",
+#      ylab="Min groups sum of squares",  ylim=c(min(minwss[2:clusterN]),max(minwss[2:clusterN])))
+# plot(3:clusterN, diff(minwss[2:clusterN])*-1, type="b", xlab="Number of Clusters",
+#      ylab="Diff Min groups sum of squares")#,ylim=c(min(minwss[2:clusterN]),max(minwss[2:clusterN])))
+# plot(2:clusterN, btwss[2:clusterN]/totss[2:clusterN], type="b", xlab="Number of Clusters",
+#      ylab="BSS/TSS Ratio")#,  ylim=c(min(totss[2:clusterN]),max(totss[2:clusterN])))
 #####
 
 
@@ -228,6 +228,7 @@ save_plot("./figs/Figs2_moPerc.png", p2, base_height = 5, base_aspect_ratio = 1.
 # code from percTransitions.R
 
 library(ggplot2)
+library(scales)
 library(dplyr)
 library(tidyr)
 library(readr)
@@ -418,6 +419,77 @@ pMap<-cowplot::plot_grid(p1, p2,p3, labels = "AUTO", align = "v",ncol = 1,
                          hjust = -0.5, vjust = -0.5)
 save_plot("./figs/Fig4_heatMap.png", pMap, base_height = 7, base_aspect_ratio = 1.5, bg = "white")
 
+
+##### FIGURE X --- seasonal temperature and precipitation anomalies/trends
+
+##### 
+# seasonal means/sums
+seasPrec<-read_csv("data/csv_5cluster/Cluster5_3mo_total_precip_PRISM_1895-2022.csv")
+seasTemp<-read_csv("data/csv_5cluster/Cluster5_3mo_mean_temp_PRISM_1895-2022.csv")
+
+# subset to seasons
+seasPrec<-subset(seasPrec, month %in% c(3,6,9,12))
+seasTemp<-subset(seasTemp, month %in% c(3,6,9,12))
+
+# adjust to water year
+seasPrec$year<-ifelse(seasPrec$month==12,seasPrec$year+1,seasPrec$year)
+seasTemp$year<-ifelse(seasTemp$month==12,seasTemp$year+1,seasTemp$year)
+# trim first year -prec
+#seasPrec<-subset(seasPrec, dates>="1895-12-01")
+seasPrec<-subset(seasPrec,year>1895 & year<2023)
+seasPrec$wyDate<-as.Date(paste0(seasPrec$year,"-",seasPrec$month,"-01"))  
+# trim first year -temp
+#seasTemp<-subset(seasTemp, dates>="1895-12-01")
+seasTemp<-subset(seasTemp,year>1895 & year<2023)
+seasTemp$wyDate<-as.Date(paste0(seasTemp$year,"-",seasTemp$month,"-01"))  
+
+# convert to long for plotting - prec
+seasPrecLong<-tidyr::gather(seasPrec, cluster,prec, 4:8)
+seasPrecLong$month<-factor(seasPrecLong$month, levels=c(12,3,6,9))
+
+# convert to long for plotting - temp
+seasTempLong<-tidyr::gather(seasTemp, cluster,temp, 4:8)
+seasTempLong$month<-factor(seasTempLong$month, levels=c(12,3,6,9))
+
+##### PRECIP SEAS
+# mean by group
+seasPrecLong<-subset(seasPrecLong, !is.na(prec))
+seasPrecLong<-seasPrecLong %>% group_by(cluster, month) %>%
+  mutate(meanPrec=mean(prec, na.rm=TRUE))
+seasPrecLong$anom<-seasPrecLong$prec-seasPrecLong$meanPrec
+seasPrecLong$anomCat<-ifelse(seasPrecLong$anom>0, "wet","dry")
+
+ggplot(seasPrecLong)+
+  geom_bar(aes(year,anom, fill=anomCat),stat="identity",position="identity")+
+  scale_fill_manual(values=c("brown","forestgreen"))+
+  geom_smooth(aes(year,anom),method=lm, se=F)+
+  #scale_x_continuous(breaks=seq(1900,2020,10))+
+  facet_grid(cluster~month)+
+  ggtitle("Seasonal Precipitation Anomaly by Cluster")+
+  theme_bw()
+
+##### TEMPS SEAS
+# mean by group
+seasTempLong<-subset(seasTempLong, !is.na(temp))
+seasTempLong<-seasTempLong %>% group_by(cluster,month) %>%
+  mutate(meanTemp=mean(temp, na.rm=TRUE))
+seasTempLong$anom<-seasTempLong$temp-seasTempLong$meanTemp
+seasTempLong$anomCat<-ifelse(seasTempLong$anom>0, "warm","cool")
+
+ggplot(seasTempLong)+
+  geom_bar(aes(year,anom, fill=anomCat),stat="identity",position="identity")+
+  scale_fill_manual(values=c("blue","red"))+
+  geom_smooth(aes(year,anom),method=lm, se=F)+
+  #scale_x_continuous(breaks=seq(1900,2020,10))+
+  facet_grid(cluster~month)+
+  ggtitle("Seasonal Temperature Anomaly by Cluster")+
+  theme_bw()
+##### combine into one figure, fix cluster and season names, remove legend
+
+#####
+
+
+
 ##### supp figures
 
 load("./data/catCounts.RData") ##### from percTransitions.R, line 366
@@ -427,5 +499,5 @@ ggplot(subset(catCounts, code %in% c("warm-wet","warm-dry","warm-avg")), aes(x=p
   #geom_bar(position="fill")+
   scale_fill_manual(values = colorsTP[order(colorsTP$code),"rgbComb"][7:9], name = "Climate Cat", 
                     guide = guide_legend(reverse = TRUE))+
-  ylab("% occurrence")
-
+  ylab("% occurrence")+
+theme_bw()
