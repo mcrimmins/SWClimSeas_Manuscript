@@ -9,13 +9,13 @@ library(tidyr)
 
 ##### precipitation percentiles ----
 # read in data file
-prec<-read_csv("data/csv_5cluster/Cluster5_monthly_total_precip_PRISM_1895-2022.csv")
+prec<-read_csv("data/csv_5cluster/Cluster5_monthly_total_precip_nClimDiv_1895-2022.csv")
 # apply rolling sum to seas length
-precPerc<-cbind.data.frame(prec[,c(1:3)],zoo::rollapply(prec[,4:8], FUN = sum, width = 12,
+precPerc<-cbind.data.frame(prec[,c(1:3)],zoo::rollapply(prec[,4:8], FUN = sum, width = 3,
                                                         fill=NA,align="right", by.column = TRUE))
 
 # save total seas precip
-write.csv(precPerc,file='./data/csv_5cluster/Cluster5_12mo_total_precip_PRISM_1895-2022.csv', row.names=FALSE)
+write.csv(precPerc,file='./data/csv_5cluster/Cluster5_3mo_total_precip_nClimDiv_1895-2022.csv', row.names=FALSE)
 
 # wide to long
 precPerc <- gather(precPerc, cluster, prec, cluster1:cluster5, factor_key=TRUE)
@@ -32,13 +32,13 @@ write.csv(precPerc,file='./data/csv_5cluster/Cluster5_12mo_total_precip_percenti
 
 ##### temp percentiles ----
 # read in data file
-temp<-read_csv("data/csv_5cluster/Cluster5_monthly_mean_temp_PRISM_1895-2022.csv")
+temp<-read_csv("data/csv_5cluster/Cluster5_monthly_mean_temp_nClimDiv_1895-2022.csv")
 # apply rolling sum to seas length
-tempPerc<-cbind.data.frame(temp[,c(1:3)],zoo::rollapply(temp[,4:8], FUN = mean, width = 12,
+tempPerc<-cbind.data.frame(temp[,c(1:3)],zoo::rollapply(temp[,4:8], FUN = mean, width = 3,
                                                         fill=NA,align="right", by.column = TRUE))
 
 # write out seas means
-#write.csv(tempPerc,file='./data/csv_5cluster/Cluster5_3mo_mean_temp_PRISM_1895-2022.csv', row.names=FALSE)
+write.csv(tempPerc,file='./data/csv_5cluster/Cluster5_3mo_mean_temp_nClimDiv_1895-2022.csv', row.names=FALSE)
 #####
 
 # wide to long

@@ -345,12 +345,26 @@ ggplot(catCounts, aes(year.x,count,fill=code))+
                     guide = guide_legend(reverse = TRUE))+
   scale_x_continuous(breaks=seq(1900,2020,10))
 
-length(unique(seasCatsLong$year.x))/8
-seq(1896+16,2022,by=16)
-seasCatsLong$period<-cut(seasCatsLong$year.x, breaks = c(seq(1895,2022,by=16),2022), dig.lab=4)
-seasCatsLong$period<-gsub(']', '', seasCatsLong$period)
-seasCatsLong$period<-gsub('\\(', '', seasCatsLong$period)
-seasCatsLong$period<-gsub(',', '-', seasCatsLong$period)
+
+# Define the breaks
+breaks <- c(seq(1895, 2022, by = 16), 2023)
+
+# Create the labels for the bins
+labels <- paste0(breaks[-length(breaks)], "-", breaks[-1] - 1)
+
+# Apply the cut function with custom labels
+seasCatsLong$period <- cut(seasCatsLong$year.x, 
+            breaks = breaks, 
+            labels = labels, 
+            dig.lab = 4, 
+            right = FALSE)
+
+#length(unique(seasCatsLong$year.x))/8
+#seq(1896+16,2022,by=16)
+#seasCatsLong$period<-cut(seasCatsLong$year.x, breaks = c(seq(1895,2022,by=16),2022), dig.lab=4)
+#seasCatsLong$period<-gsub(']', '', seasCatsLong$period)
+#seasCatsLong$period<-gsub('\\(', '', seasCatsLong$period)
+#seasCatsLong$period<-gsub(',', '-', seasCatsLong$period)
 seasCatsLong$period<-as.factor(seasCatsLong$period)
 levels(seasCatsLong$period)
 

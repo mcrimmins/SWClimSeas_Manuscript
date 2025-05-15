@@ -27,9 +27,30 @@ vpdmax<-stack("/scratch/crimmins/PRISM/monthly/processed/SW/SWmonthlyPRISM_vpdma
 tmax<-stack("/scratch/crimmins/PRISM/monthly/processed/SW/SWmonthlyPRISM_tmax_1895_2022.grd")
 tmin<-stack("/scratch/crimmins/PRISM/monthly/processed/SW/SWmonthlyPRISM_tmin_1895_2022.grd")
 
+# ##### nClimDiv data -----
+# #prec<-stack("./data/nclimgrid_prcp.nc")
+# tmean<-stack("./data/nclimgrid_tavg.nc")
+# gridVar<-tmean
+# # Assuming `raster_stack` is your SpatRaster or RasterStack
+# layer_names <- names(gridVar)
+# # Convert names like "X1977.12.01" to Date objects
+# layer_dates <- as.Date(sub("X", "", layer_names), format = "%Y.%m.%d")
+#   start_date <- as.Date("1895-01-01")
+#   end_date <- as.Date("2022-12-01")
+# # Create a logical index for layers within the date range
+#   date_filter <- layer_dates >= start_date & layer_dates <= end_date
+# # Use which() to convert to numeric indices
+#   subset_indices <- which(date_filter)
+# # Subset the SpatRaster
+#   gridVar<- gridVar[[subset_indices]]
+# rm(tmean)
+
 # set stack  
-gridVar<-prec
+gridVar<-prec # PRISM data
 gridVar<-crop(gridVar, extent(classMap))
+
+# adjust ClassMap for nClimDiv
+#gridVar <- resample(gridVar, classMap, method = "bilinear")  # or "ngb" for categorical data
 
 clusterN<-nrow(levels(classMap)[[1]])  
 # get zonal time series of climate values from clusters
@@ -45,7 +66,7 @@ climTS$seas<-cut(climTS$month,c(0,3,6,9,12))
 levels(climTS$seas) = c("JFM","AMJ","JAS","OND")
 
 # write out csv
-write.csv(climTS,file='./data/csv_5cluster/Cluster5_monthly_min_temp_PRISM_1895-2022.csv', row.names=FALSE)
+write.csv(climTS,file='./data/csv_5cluster/Cluster5_monthly_mean_temp_nClimDiv_1895-2022.csv', row.names=FALSE)
 
 # check climo
 # library(dplyr)

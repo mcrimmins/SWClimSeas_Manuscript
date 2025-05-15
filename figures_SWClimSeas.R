@@ -7,6 +7,7 @@ library(rasterVis)
 library(viridis)
 library(ggplot2)
 library(cowplot)
+library(sf)
 
 # set rasteroptions
 rasterOptions(progress = 'text')
@@ -130,7 +131,7 @@ proc.time() - ptm
 # terra based
 classMap<-as.factor(unC$map)
 levels(classMap)
-levels(classMap) <- data.frame(id=1:5, category=c("Colorado Plateau (1)","Great Plains (2)","Lower Gila/Colorado (3)","Upper Gila (4)","Rio Grande (5)"))
+levels(classMap) <- data.frame(id=1:5, category=c("Colorado Plateau (CP)","Great Plains (GP)","Lower Gila/Colorado (LGC)","Upper Gila (UG)","Rio Grande (RG)"))
 #####
 
 
@@ -147,6 +148,28 @@ labs<-c("NV","CA","TX","MX","AZ","NM")
 lon<-c(-114.573669,-114.769800,-104.712067,-112.5, -110.30515736669224, -107.28654183584308)
 lat<-c(36.557163,34.28445,31.683050,31.579434,36.59082111537832,36.59082111537832)
 stLabs<-cbind.data.frame(labs,lat,lon)
+
+# import rivers
+# library(rnaturalearth)
+# rivers <- ne_download(scale = 'large', type = "rivers_lake_centerlines", category = "physical", returnclass = "sf")
+# us_boundary <- ne_countries(scale = 10, country = "United States of America", returnclass = "sf")
+# us_rivers <- st_intersection(rivers, us_boundary)
+# us_rivers_sp <- as(us_rivers, "Spatial")
+# us_rivers_sp <-fortify(us_rivers_sp)
+
+# alternate rivers shapefile http://www.cec.org/north-american-environmental-atlas/lakes-and-rivers-2023/
+us_rivers<-st_read("./data/shapes/northamerica_rivers_cec_2023.shp")
+us_rivers <- st_transform(us_rivers, crs = 4326)
+us_rivers_sp<-as(us_rivers, "Spatial")
+us_rivers_sp<-subset(us_rivers_sp, Country=="USA")
+us_rivers_sp<-subset(us_rivers_sp, NameEn %in% c("Colorado River","Gila River","Rio Grande",
+                                                 "Salt River", "Verde River", "Pecos River","Canadian River"))
+us_rivers_sp<-fortify(us_rivers_sp)
+
+# ggplot(data = us_rivers_sp, aes(x = long, y = lat, group = group)) +
+#   geom_path(color="blue", size=0.2)+
+#   coord_fixed()+
+#   theme_void()
 
 # ggplot inset data
 states <- map_data("state")
@@ -180,6 +203,7 @@ p1<-ggplot(data = rast_df) +
   geom_polygon(data=states, aes(x = long, y = lat, group = group),fill=NA, color="grey17", size=0.1)+
   geom_polygon(data = countries, aes(x = long, y = lat, group = group), fill="grey88", color="grey88", size=0.1)+
   geom_text(data = stLabs, aes(x=lon,y=lat,label=labs))+
+  geom_path(data = us_rivers_sp, aes(x = long, y = lat, group = group), fill=NA, color="cyan2", size=0.2)+
   #coord_equal()+
   coord_fixed(xlim=c(-114.88,-102.9), ylim=c(31.22,37.08), ratio = 1)+
   scale_x_continuous(expand=c(0,0)) +
@@ -192,16 +216,51 @@ p1<-ggplot(data = rast_df) +
   )
 
 p1<-p1 + annotation_custom(grob = g, ymin = 31.25, ymax = 32.25, xmin = -114.85, xmax = -112.9)
-save_plot("./figs/Fig1_map.png", p1, base_height = 5, base_aspect_ratio = 1.75, bg = "white")
+
+#save_plot("./figs/Fig1_map.png", p1, base_height = 5, base_aspect_ratio = 1.75, bg = "white")
 #####
+
+##### updated with river labels
+
+# Ensure the river data is an sf object
+river_labels <- us_rivers %>%
+  filter(NameEn %in% c("Colorado River", "Gila River", "Rio Grande",
+                       "Salt River", "Verde River", "Pecos River", "Canadian River"))
+
+# Calculate centroids for selected rivers
+river_centroids <- st_centroid(river_labels)
+
+# Extract coordinates for labels
+river_labels_df <- data.frame(
+  x = st_coordinates(river_centroids)[, 1],
+  y = st_coordinates(river_centroids)[, 2],
+  name = river_labels$NameEn
+)
+
+# manually edit the coordinates for the labels
+
+river_labels_df[12,1]<--104
+river_labels_df[3,1]<--104
+
+river_labels_df<-river_labels_df[-15,]
+
+# Add river labels to the plot
+p1 <- p1 +
+  geom_text(data = river_labels_df, aes(x = x, y = y, label = name), 
+            size = 3, color = "blue", fontface = "italic", check_overlap = TRUE)
+save_plot("./figs/Fig1_map.png", p1, base_height = 5, base_aspect_ratio = 1.75, bg = "white")
+
+#####
+
+
 
 ##### FIGURE 1b -- plot monthly cluster values
 # cluster centers - months
 moCluster<-as.data.frame(unC$model$centers)
 colnames(moCluster)<-seq(1,12,1)
 #moCluster$cluster<-seq(1,nrow(moCluster),1)
-moCluster$cluster<-c("Colorado Plateau (1)","Great Plains (2)","Lower Gila/Colorado (3)","Upper Gila (4)","Rio Grande (5)")
-moCluster$cluster<-factor(moCluster$cluster, levels=c("Colorado Plateau (1)","Great Plains (2)","Lower Gila/Colorado (3)","Upper Gila (4)","Rio Grande (5)"))
+moCluster$cluster<-c("Colorado Plateau (CP)","Great Plains (GP)","Lower Gila/Colorado (LGC)","Upper Gila (UG)","Rio Grande (RG)")
+moCluster$cluster<-factor(moCluster$cluster, levels=c("Colorado Plateau (CP)","Great Plains (GP)","Lower Gila/Colorado (LGC)","Upper Gila (UG)","Rio Grande (RG)"))
 moCluster <- tidyr::gather(moCluster, month, precip, 1:12, factor_key=TRUE)
 moCluster$month<-as.numeric(moCluster$month)
 
@@ -210,9 +269,14 @@ p2<-ggplot(moCluster, aes(month,precip, color=as.factor(cluster)))+
   geom_line()+
   geom_point(size=2)+
   scale_color_manual(values=c('#7fc97f','#beaed4','#fdc086','#dede73','#386cb0'), name="")+
-  scale_x_continuous(breaks=seq(1,12,1))+
+  #scale_x_continuous(breaks=seq(1,12,1))+
+  scale_x_continuous(
+    breaks = 1:12, 
+    labels = c("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+  )+ 
   #ggtitle("K-mean cluster centers - Percent of annual total by month")+
-  ylab("% of annual total precip")+
+  ylab("% of Annual Total Precipitation")+
+  xlab("Month")+
   theme_bw()+
   theme(
     legend.position = "bottom"
@@ -226,7 +290,6 @@ save_plot("./figs/Figs2_moPerc.png", p2, base_height = 5, base_aspect_ratio = 1.
 
 ##### FIGURE 3(?) -- seasonal climate heat maps
 # code from percTransitions.R
-
 library(ggplot2)
 library(scales)
 library(dplyr)
@@ -239,8 +302,12 @@ seasPrec<-read_csv("data/csv_5cluster/Cluster5_3mo_total_precip_percentile_PRISM
 seasTemp<-read_csv("data/csv_5cluster/Cluster5_3mo_mean_temp_percentile_PRISM_1895-2022.csv")
 
 # rename columns from cluster to 'c'
-colnames(seasPrec)[4:8]<-c("c1","c2","c3","c4","c5")
-colnames(seasTemp)[4:8]<-c("c1","c2","c3","c4","c5")
+# c("Colorado Plateau (1)","Great Plains (2)","Lower Gila/Colorado (3)","Upper Gila (4)","Rio Grande (5)")
+# c("Colorado Plateau (CP)","Great Plains (GP)","Lower Gila/Colorado (LGC)","Upper Gila (UG)","Rio Grande (RG)")
+# colnames(seasPrec)[4:8]<-c("c1","c2","c3","c4","c5")
+# colnames(seasTemp)[4:8]<-c("c1","c2","c3","c4","c5")
+colnames(seasPrec)[4:8]<-c("CP","GP","LGC","UG","RG")
+colnames(seasTemp)[4:8]<-c("CP","GP","LGC","UG","RG")
 
 # subset to seasons
 seasPrec<-subset(seasPrec, month %in% c(3,6,9,12))
@@ -333,6 +400,23 @@ seasPrecCatsLong<- seasPrecCatsLong %>% mutate(seas = case_match(month,
 #seasPrecCatsLong$seas<-factor(seasPrecCatsLong$seas, levels=c("OND","JFM","AMJ","JAS"))
 seasPrecCatsLong$seas<-factor(seasPrecCatsLong$seas, levels=(c("OND","JFM","AMJ","JAS")))
 
+# iconic droughts
+drought1 <- data.frame(
+  xmin = 1949,
+  xmax = 1958,
+  ymin = -Inf,  # Use -Inf and Inf to cover the full height of the facet
+  ymax = Inf,
+  season = c("OND", "JFM", "AMJ", "JAS")  # Facet variable(s)
+)
+
+drought2 <- data.frame(
+  xmin = 2006,
+  xmax = 2014,
+  ymin = -Inf,  # Use -Inf and Inf to cover the full height of the facet
+  ymax = Inf,
+  season = c("OND", "JFM", "AMJ", "JAS")  # Facet variable(s)
+)
+
 
 p1<-ggplot(seasPrecCatsLong, aes(x = year, y = as.factor(cluster), fill = cat)) + # change y to cluster/month
   geom_tile(color = "black") +
@@ -347,7 +431,15 @@ p1<-ggplot(seasPrecCatsLong, aes(x = year, y = as.factor(cluster), fill = cat)) 
   #ggtitle("Seasonal Total Precip Percentiles Categories")+
   theme(axis.title.y=element_blank(),
         axis.text.y=element_text(size = 7))+
-  xlab("")
+  xlab("")+
+  #geom_vline(xintercept = c(1949, 1958), linetype = "dashed", color = "black", size=0.6)+ # Add vertical lines
+  #geom_vline(xintercept = c(2007, 2014), linetype = "dashed", color = "black", size=0.6)
+  geom_rect(data = drought1,
+            aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax),
+            fill = NA, color="black",size=0.8, inherit.aes = FALSE)+
+  geom_rect(data = drought2,
+            aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax),
+            fill = NA, color="black",size=0.8, inherit.aes = FALSE)
 
 
 # temperatures
@@ -384,7 +476,15 @@ p2<-ggplot(seasTempCatsLong, aes(x = year, y = as.factor(cluster), fill = cat)) 
   #ggtitle("Seasonal Mean Temp Percentiles Categories")+
   theme(axis.title.y=element_blank(),
         axis.text.y=element_text(size = 7))+
-  xlab("")
+  xlab("")+
+  #geom_vline(xintercept = c(1949, 1958), linetype = "dashed", color = "black", size=0.6)+ # Add vertical lines
+  #geom_vline(xintercept = c(2007, 2014), linetype = "dashed", color = "black", size=0.6)
+  geom_rect(data = drought1,
+            aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax),
+            fill = NA, color="black",size=0.8, inherit.aes = FALSE)+
+  geom_rect(data = drought2,
+            aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax),
+            fill = NA, color="black",size=0.8, inherit.aes = FALSE)
 
 cowplot::plot_grid(p1, p2, labels = "AUTO", align = "v",ncol = 1)
 
@@ -411,7 +511,16 @@ p3<-ggplot(seasCatsLong, aes(x = year.x, y = as.factor(cluster), fill = code)) +
   #ggtitle("Seasonal Climate Percentile Categories")+
   theme(axis.title.y=element_blank(),
         axis.text.y=element_text(size = 7))+
-  xlab("year")
+  xlab("year")+
+  #geom_vline(xintercept = c(1949, 1958), linetype = "solid", color = "grey50", size=0.6)+ # Add vertical lines
+  #geom_vline(xintercept = c(2007, 2014), linetype = "dashed", color = "black", size=0.6)
+  geom_rect(data = drought1,
+            aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax),
+            fill = NA, color="black",size=0.8, inherit.aes = FALSE)+
+  geom_rect(data = drought2,
+            aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax),
+            fill = NA, color="black",size=0.8, inherit.aes = FALSE)
+  
 
 pMap<-cowplot::plot_grid(p1, p2,p3, labels = "AUTO", align = "v",ncol = 1,
                          label_size = 12,
@@ -426,6 +535,15 @@ save_plot("./figs/Fig4_heatMap.png", pMap, base_height = 7, base_aspect_ratio = 
 # seasonal means/sums
 seasPrec<-read_csv("data/csv_5cluster/Cluster5_3mo_total_precip_PRISM_1895-2022.csv")
 seasTemp<-read_csv("data/csv_5cluster/Cluster5_3mo_mean_temp_PRISM_1895-2022.csv")
+
+# nClimDiv data
+seasPrec<-read_csv("data/csv_5cluster/Cluster5_3mo_total_precip_nClimDiv_1895-2022.csv")
+seasTemp<-read_csv("data/csv_5cluster/Cluster5_3mo_mean_temp_nClimDiv_1895-2022.csv")
+
+
+# rename columns
+colnames(seasPrec)[4:8]<-c("CP","GP","LGC","UG","RG")
+colnames(seasTemp)[4:8]<-c("CP","GP","LGC","UG","RG")
 
 # subset to seasons
 seasPrec<-subset(seasPrec, month %in% c(3,6,9,12))
@@ -444,12 +562,37 @@ seasTemp<-subset(seasTemp,year>1895 & year<2023)
 seasTemp$wyDate<-as.Date(paste0(seasTemp$year,"-",seasTemp$month,"-01"))  
 
 # convert to long for plotting - prec
+#seasPrecLong<-tidyr::gather(seasPrec, cluster,prec, 4:8)
+#seasPrecLong$month<-factor(seasPrecLong$month, levels=c(12,3,6,9))
+# convert to long for plotting - prec
 seasPrecLong<-tidyr::gather(seasPrec, cluster,prec, 4:8)
 seasPrecLong$month<-factor(seasPrecLong$month, levels=c(12,3,6,9))
+seasPrecLong$seas<-seasPrecLong$month
+seasPrecLong<- seasPrecLong %>% mutate(seas = case_match(month, 
+                                                         "12" ~ "OND", 
+                                                         "3" ~ "JFM",
+                                                         "6" ~ "AMJ",
+                                                         "9" ~ "JAS",
+                                                         .default = seas))
+#seasPrecLong$seas<-factor(seasPrecLong$seas, levels=c("OND","JFM","AMJ","JAS"))
+seasPrecLong$seas<-factor(seasPrecLong$seas, levels=rev(c("OND","JFM","AMJ","JAS")))
 
+# convert to long for plotting - temp
+#seasTempLong<-tidyr::gather(seasTemp, cluster,temp, 4:8)
+#seasTempLong$month<-factor(seasTempLong$month, levels=c(12,3,6,9))
 # convert to long for plotting - temp
 seasTempLong<-tidyr::gather(seasTemp, cluster,temp, 4:8)
 seasTempLong$month<-factor(seasTempLong$month, levels=c(12,3,6,9))
+seasTempLong$seas<-seasTempLong$month
+seasTempLong<- seasTempLong %>% mutate(seas = case_match(month, 
+                                                         "12" ~ "OND", 
+                                                         "3" ~ "JFM",
+                                                         "6" ~ "AMJ",
+                                                         "9" ~ "JAS",
+                                                         .default = seas))
+#seasPrecLong$seas<-factor(seasPrecLong$seas, levels=c("OND","JFM","AMJ","JAS"))
+seasTempLong$seas<-factor(seasTempLong$seas, levels=rev(c("OND","JFM","AMJ","JAS")))
+
 
 ##### PRECIP SEAS
 # mean by group
@@ -458,15 +601,41 @@ seasPrecLong<-seasPrecLong %>% group_by(cluster, month) %>%
   mutate(meanPrec=mean(prec, na.rm=TRUE))
 seasPrecLong$anom<-seasPrecLong$prec-seasPrecLong$meanPrec
 seasPrecLong$anomCat<-ifelse(seasPrecLong$anom>0, "wet","dry")
+seasPrecLong$seas<-factor(seasPrecLong$seas, levels=(c("OND","JFM","AMJ","JAS")))
 
-ggplot(seasPrecLong)+
+# get trends
+trend_prec <- seasPrecLong %>%
+  group_by(cluster, seas) %>%
+  summarize(
+    slope = coef(lm(anom ~ year))[2],  # Extract slope
+    p_value = summary(lm(anom ~ year))$coefficients[2, 4],  # Extract p-value
+    .groups = "drop"
+  ) %>%
+  mutate(
+    significance = ifelse(p_value < 0.05, "*", ""),  # Determine significance
+    label = paste0(round(slope, 4), significance, "")  # Create annotation label
+  )
+
+# table for paper
+table_prec <- trend_prec %>%
+  select(cluster, seas, label) %>% # Select relevant columns
+  pivot_wider(names_from = seas, values_from = label)
+
+p1<-ggplot(seasPrecLong)+
   geom_bar(aes(year,anom, fill=anomCat),stat="identity",position="identity")+
-  scale_fill_manual(values=c("brown","forestgreen"))+
+  scale_fill_manual(values=c("brown","forestgreen"), guide="none")+
   geom_smooth(aes(year,anom),method=lm, se=F)+
   #scale_x_continuous(breaks=seq(1900,2020,10))+
-  facet_grid(cluster~month)+
-  ggtitle("Seasonal Precipitation Anomaly by Cluster")+
+  facet_grid(cluster~seas)+
+  #ggtitle("Seasonal Precipitation Anomaly by Cluster")+
+  ylab("Anomaly (mm)")+
   theme_bw()
+  # geom_text(
+  #   data = trend_prec,
+  #   aes(x = 1960, y = -90, label = label),  # Adjust x and y for placement
+  #   inherit.aes = FALSE, color = "black", size = 3
+  # )
+#save_plot("./figs/Fig10a_precipTrends.png", p1, base_height = 7, base_aspect_ratio = 1.2, bg = "white")
 
 ##### TEMPS SEAS
 # mean by group
@@ -475,29 +644,80 @@ seasTempLong<-seasTempLong %>% group_by(cluster,month) %>%
   mutate(meanTemp=mean(temp, na.rm=TRUE))
 seasTempLong$anom<-seasTempLong$temp-seasTempLong$meanTemp
 seasTempLong$anomCat<-ifelse(seasTempLong$anom>0, "warm","cool")
+seasTempLong$seas<-factor(seasTempLong$seas, levels=(c("OND","JFM","AMJ","JAS")))
 
-ggplot(seasTempLong)+
+# get trends
+trend_temp <- seasTempLong %>%
+  group_by(cluster, seas) %>%
+  summarize(
+    slope = coef(lm(anom ~ year))[2],  # Extract slope
+    p_value = summary(lm(anom ~ year))$coefficients[2, 4],  # Extract p-value
+    .groups = "drop"
+  ) %>%
+  mutate(
+    significance = ifelse(p_value < 0.05, "*", ""),  # Determine significance
+    label = paste0(round(slope, 4), significance, "")  # Create annotation label
+  )
+
+# table for paper
+table_temp <- trend_temp %>%
+  select(cluster, seas, label) %>% # Select relevant columns
+  pivot_wider(names_from = seas, values_from = label)
+
+p2<-ggplot(seasTempLong)+
   geom_bar(aes(year,anom, fill=anomCat),stat="identity",position="identity")+
-  scale_fill_manual(values=c("blue","red"))+
+  scale_fill_manual(values=c("blue","red"), guide="none")+
   geom_smooth(aes(year,anom),method=lm, se=F)+
   #scale_x_continuous(breaks=seq(1900,2020,10))+
-  facet_grid(cluster~month)+
-  ggtitle("Seasonal Temperature Anomaly by Cluster")+
+  facet_grid(cluster~seas)+
+  #ggtitle("Seasonal Temperature Anomaly by Cluster")+
+  ylab("Anomaly (C)")+
   theme_bw()
+  # geom_text(
+  #   data = trend_temp,
+  #   aes(x = 1960, y = -2.75, label = label),  # Adjust x and y for placement
+  #   inherit.aes = FALSE, color = "black", size = 3
+  # )
+#save_plot("./figs/Fig10b_tempTrends.png", p2, base_height = 7, base_aspect_ratio = 1.2, bg = "white")
+p3<-cowplot::plot_grid(p1, p2, labels = "AUTO", align = "v",ncol = 1)
+save_plot("./figs/Fig10_TempPrecipTrends_nClimDiv.png", p3, base_height = 11, base_aspect_ratio = 0.8, bg = "white")
+
 ##### combine into one figure, fix cluster and season names, remove legend
+
+# write tables to excel file
+library(openxlsx)
+wb <- createWorkbook()
+
+# Add multiple sheets (tabs) with different tables
+addWorksheet(wb, "TempTrends")
+writeData(wb, "TempTrends", table_temp)  # Replace `table1` with your actual table
+
+addWorksheet(wb, "PrecTrends")
+writeData(wb, "PrecTrends", table_prec)  # Replace `table2` with your actual table
+
+# Save the workbook to a file
+saveWorkbook(wb, file = "./figs/Trends_nClimDiv.xlsx", overwrite = TRUE)
 
 #####
 
 
 
 ##### supp figures
+library(ggplot2)
 
 load("./data/catCounts.RData") ##### from percTransitions.R, line 366
 # only warm 
-ggplot(subset(catCounts, code %in% c("warm-wet","warm-dry","warm-avg")), aes(x=period,y=(count/(16*4*5)*100),fill=code))+
+p1<-ggplot(subset(catCounts, code %in% c("warm-wet","warm-dry","warm-avg")), aes(x=period,y=(count/(16*4*5)*100),fill=code))+
   geom_bar(stat="identity")+
   #geom_bar(position="fill")+
-  scale_fill_manual(values = colorsTP[order(colorsTP$code),"rgbComb"][7:9], name = "Climate Cat", 
+  scale_fill_manual(values = colorsTP[order(colorsTP$code),"rgbComb"][7:9], name = "", 
                     guide = guide_legend(reverse = TRUE))+
-  ylab("% occurrence")+
+  ylab("Frequency of Occurrence (%)")+xlab("Period")+
 theme_bw()
+
+save_plot("./figs/SuppF1_warmSeasons.png", p1, base_height = 5, base_aspect_ratio = 1.5, bg = "white")
+
+# write out seasPrec and seasTemp for data repository
+write.csv(seasPrec, "./figs/AZ_NM_Cluster5_3mo_total_precip_PRISM_1895-2022.csv", row.names = FALSE)
+write.csv(seasTemp, "./figs/AZ_NM_Cluster5_3mo_mean_temp_PRISM_1895-2022.csv", row.names = FALSE)
+
